@@ -1,137 +1,124 @@
 import streamlit as st
 import numpy as np
-import pandas as pd
 import plotly.graph_objects as go
-import math
 
-st.set_page_config(page_title="AI Wealth Growth Simulator", layout="wide")
+st.set_page_config(page_title="AI Credit Score Analyzer", layout="wide")
 
-# ---------- Clean Premium Styling ----------
+# ---------- Styling ----------
 st.markdown("""
 <style>
-.main {background-color:#0f172a; color:white;}
-.block-container {padding-top:1rem;}
-.metric-card {background:#111827; padding:12px; border-radius:12px;}
+.main {background-color: #0e1117; color: white;}
+.stMetric {background-color: #1f2937; padding: 12px; border-radius: 12px;}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("💰 AI Wealth Growth Simulator + Robo Advisor")
+st.title("💳 AI Credit Score & Financial Health Analyzer")
 
-# ---------- Sidebar ----------
-st.sidebar.header("Inputs")
-P = st.sidebar.number_input("Investment Amount (₹)", value=10000)
-T = st.sidebar.slider("Time Period (Years)", 1, 30, 10)
-risk = st.sidebar.selectbox("Risk Level", ["Low", "Medium", "High"])
-goal = st.sidebar.number_input("🎯 Target Goal (₹)", value=100000)
-tax_rate = st.sidebar.slider("Tax Rate (%)", 0, 30, 10)/100
+# ---------- Sidebar Inputs ----------
+st.sidebar.header("User Input")
+income = st.sidebar.number_input("Monthly Income (₹)", value=50000)
+expenses = st.sidebar.number_input("Monthly Expenses (₹)", value=30000)
 
-rates = {"Low":0.05, "Medium":0.10, "High":0.15}
+# Loan inputs
+st.sidebar.markdown("---")
+st.sidebar.subheader("🏦 Loan Details")
+loan_amount = st.sidebar.number_input("Loan Amount (₹)", value=500000)
+interest_rate = st.sidebar.slider("Interest Rate (%)", 5.0, 20.0, 10.0) / 100
+loan_years = st.sidebar.slider("Loan Tenure (Years)", 1, 30, 5)
 
-# ---------- Growth ----------
-def growth(P,r,T):
-    return [P*(1+r)**t for t in range(T+1)]
+# ---------- Calculations ----------
+savings = income - expenses
+savings_rate = savings / income if income > 0 else 0
 
-values = growth(P,rates[risk],T)
+credit_score = int(300 + (savings_rate * 550))
+credit_score = max(300, min(850, credit_score))
 
-# ---------- KPI ----------
-st.subheader("📊 Overview")
-col1,col2,col3 = st.columns(3)
-final_val = values[-1]
-col1.metric("Final Value", f"₹{int(final_val)}")
-col2.metric("Profit", f"₹{int(final_val-P)}")
-col3.metric("Growth %", f"{int((final_val/P-1)*100)}%")
+health_score = int(savings_rate * 100)
 
-# ---------- Growth Chart ----------
-st.subheader("📈 Growth Trend")
-fig = go.Figure()
-fig.add_trace(go.Scatter(y=values, mode='lines', line=dict(width=3)))
-fig.update_layout(template="plotly_dark", margin=dict(l=20,r=20,t=20,b=20))
-st.plotly_chart(fig,use_container_width=True)
-
-# ---------- Goal Planning ----------
-st.subheader("🎯 Goal Planning")
-if final_val>=goal:
-    st.success("✅ Goal Achieved")
+if savings_rate > 0.4:
+    risk = "Low"
+elif savings_rate > 0.2:
+    risk = "Moderate"
 else:
-    short = goal-final_val
-    st.error(f"❌ Shortfall ₹{int(short)}")
-    req = goal/((1+rates[risk])**T)
-    st.info(f"💡 Required Investment: ₹{int(req)}")
+    risk = "High"
 
-if P>0 and goal>P:
-    time_needed = math.log(goal/P)/math.log(1+rates[risk])
-    st.write(f"⏳ Time to Goal: {round(time_needed,1)} years")
+# ---------- KPIs ----------
+st.subheader("📊 Key Metrics")
+col1, col2, col3 = st.columns(3)
+col1.metric("Credit Score", credit_score)
+col2.metric("Financial Health", f"{health_score}/100")
+col3.metric("Savings Rate", f"{round(savings_rate*100,1)}%")
 
-# ---------- SIP ----------
-st.subheader("🔄 Required SIP")
-months = T*12
-r = rates[risk]/12
-sip = goal*r/((1+r)**months-1) if r>0 else goal/months
-st.metric("Monthly SIP Needed", f"₹{int(sip)}")
+# ---------- Gauge ----------
+st.subheader("📈 Credit Score Gauge")
+fig = go.Figure(go.Indicator(mode="gauge+number", value=credit_score,
+    gauge={'axis': {'range': [300, 850]}}))
+st.plotly_chart(fig, use_container_width=True)
 
-# ---------- Portfolio ----------
-st.subheader("💼 Portfolio Performance")
-portfolio = pd.DataFrame({"Year":list(range(T+1)),"Value":values})
-st.line_chart(portfolio.set_index("Year"))
+# ---------- Pie ----------
+st.subheader("💰 Income vs Expenses")
+fig2 = go.Figure(data=[go.Pie(labels=["Expenses", "Savings"], values=[expenses, savings])])
+st.plotly_chart(fig2, use_container_width=True)
 
-# ---------- Monte Carlo ----------
-st.subheader("🎲 Monte Carlo Simulation")
-sims = []
-for _ in range(40):
-    val = P
-    temp=[]
-    for _ in range(T):
-        rand = np.random.normal(rates[risk],0.05)
-        val *= (1+rand)
-        temp.append(val)
-    sims.append(temp)
+# ---------- Loan Eligibility ----------
+st.subheader("🏦 Loan Eligibility Prediction")
+dti_ratio = expenses / income if income > 0 else 1
 
-fig2 = go.Figure()
-for s in sims:
-    fig2.add_trace(go.Scatter(y=s,mode='lines',opacity=0.25))
-fig2.update_layout(template="plotly_dark", margin=dict(l=20,r=20,t=20,b=20))
-st.plotly_chart(fig2,use_container_width=True)
+# Probability logic
+probability = min(100, max(0, int((credit_score/850)*100 - dti_ratio*50)))
 
-# ---------- Inflation + Tax ----------
-st.subheader("📉 Real Returns")
-inflation=0.06
-real = final_val/((1+inflation)**T)
-after_tax = final_val*(1-tax_rate)
-col1,col2 = st.columns(2)
-col1.metric("After Inflation", f"₹{int(real)}")
-col2.metric("After Tax", f"₹{int(after_tax)}")
-
-# ---------- Comparison ----------
-st.subheader("📊 Investment Comparison")
-fd = P*(1.06)**T
-mf = P*(1.12)**T
-stocks = P*(1.15)**T
-fig3 = go.Figure(data=[go.Bar(x=["FD","Mutual Fund","Stocks"], y=[fd,mf,stocks])])
-fig3.update_layout(template="plotly_dark")
-st.plotly_chart(fig3,use_container_width=True)
-
-# ---------- Rebalancing ----------
-st.subheader("🔄 Rebalancing Suggestion")
-if T>5:
-    st.info("Reduce equity gradually, increase bonds")
+if probability > 70:
+    st.success(f"✅ High Approval Probability: {probability}%")
+elif probability > 40:
+    st.warning(f"⚠️ Moderate Approval Probability: {probability}%")
 else:
-    st.info("Focus on growth assets")
+    st.error(f"❌ Low Approval Probability: {probability}%")
 
-# ---------- AI Advisor ----------
-st.subheader("🤖 AI Investment Advisor")
-q = st.text_input("Ask your investment question:")
-if q:
-    if "risk" in q.lower():
-        st.write("Choose risk based on time horizon")
-    elif "sip" in q.lower():
-        st.write("SIP ensures disciplined investing")
+st.write(f"📊 Debt-to-Income Ratio: {round(dti_ratio*100,1)}%")
+
+# ---------- EMI Calculator ----------
+st.subheader("📊 EMI Calculator")
+monthly_rate = interest_rate / 12
+months = loan_years * 12
+
+if monthly_rate > 0:
+    emi = loan_amount * monthly_rate * (1 + monthly_rate)**months / ((1 + monthly_rate)**months - 1)
+else:
+    emi = loan_amount / months
+
+st.metric("Monthly EMI", f"₹{int(emi)}")
+
+# EMI Graph
+balance = loan_amount
+balances = []
+for i in range(months):
+    interest = balance * monthly_rate
+    principal = emi - interest
+    balance -= principal
+    balances.append(balance if balance > 0 else 0)
+
+fig3 = go.Figure()
+fig3.add_trace(go.Scatter(y=balances, mode='lines', name='Remaining Loan'))
+st.plotly_chart(fig3, use_container_width=True)
+
+# ---------- Chatbot ----------
+st.subheader("🤖 Finance AI Assistant")
+user_q = st.text_input("Ask a financial question:")
+
+if user_q:
+    if "save" in user_q.lower():
+        st.write("💡 Try to save at least 20% of your income.")
+    elif "loan" in user_q.lower():
+        st.write("💡 Maintain a good credit score and low DTI for loan approval.")
+    elif "invest" in user_q.lower():
+        st.write("💡 Diversify investments across stocks, bonds, and gold.")
     else:
-        st.write("Diversify and invest long-term")
+        st.write("💡 Focus on budgeting, saving, and smart investing.")
 
-# ---------- Download ----------
-st.subheader("📥 Download Report")
-report = f"Investment: {P}\nFinal Value: {int(final_val)}\nGoal: {goal}"
-st.download_button("Download Summary", report)
+# ---------- Projection ----------
+st.subheader("🔮 1-Year Savings Projection")
+projection = savings * 12
+st.write(f"Estimated savings after 1 year: ₹{projection}")
 
 st.markdown("---")
-st.caption("AI Wealth Simulator | Clean Premium UI")
+st.caption("AI FinTech Project - Advanced Credit Analyzer")
